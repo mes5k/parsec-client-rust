@@ -731,6 +731,64 @@ fn hash_compare_test() {
 }
 
 #[test]
+fn mac_compute_test() {
+    let mut client: TestBasicClient = Default::default();
+    let key_name = "test";
+    let message = vec![0x77_u8; 32];
+    let mac_algorithm = Mac::FullLength( FullLengthMac::Hmac{ hash_alg: Hash::Sha256 } );
+    let mac = vec![0x33_u8; 128];
+    client.set_mock_read(&get_response_bytes_from_result(
+        NativeResult::PsaMacCompute(operations::psa_mac_compute::Result {
+            mac: mac.clone().into(),
+        }),
+    ));
+
+    // Check response
+    assert_eq!(
+        client
+            .psa_mac_compute(mac_algorithm, &key_name, &message)
+            .expect("Failed to decrypt message"),
+        mac
+    );
+
+    // Check request:
+    let op = get_operation_from_req_bytes(client.get_mock_write());
+    if let NativeOperation::PsaMacCompute(op) = op {
+        assert_eq!(op.alg, mac_algorithm);
+        assert_eq!(*op.input, message);
+    } else {
+        panic!("Got wrong operation type: {:?}", op);
+    }
+}
+
+#[test]
+fn mac_verify_test() {
+    let mut client: TestBasicClient = Default::default();
+    let key_name = "test";
+    let message = vec![0x77_u8; 32];
+    let mac_algorithm = Mac::FullLength( FullLengthMac::Hmac{ hash_alg: Hash::Sha256 } );
+    let mac = vec![0x33_u8; 128];
+    client.set_mock_read(&get_response_bytes_from_result(
+        NativeResult::PsaMacVerify(operations::psa_mac_verify::Result {}),
+    ));
+
+    // Check response
+    client
+        .psa_mac_verify(mac_algorithm, &key_name, &message, &mac)
+        .expect("Failed to decrypt message");
+
+    // Check request:
+    let op = get_operation_from_req_bytes(client.get_mock_write());
+    if let NativeOperation::PsaMacVerify(op) = op {
+        assert_eq!(op.alg, mac_algorithm);
+        assert_eq!(*op.input, message);
+        assert_eq!(*op.mac, mac);
+    } else {
+        panic!("Got wrong operation type: {:?}", op);
+    }
+}
+
+#[test]
 fn raw_key_agreement_test() {
     let mut client: TestBasicClient = Default::default();
     let key_name = String::from("key_name");
