@@ -22,7 +22,7 @@ use parsec_interface::operations::prepare_key_attestation::{
 use parsec_interface::operations::psa_aead_decrypt::Operation as PsaAeadDecrypt;
 use parsec_interface::operations::psa_aead_encrypt::Operation as PsaAeadEncrypt;
 use parsec_interface::operations::psa_algorithm::{
-    Aead, AsymmetricEncryption, AsymmetricSignature, Cipher, Hash, RawKeyAgreement,
+    Aead, AsymmetricEncryption, AsymmetricSignature, Cipher, Hash, Mac, RawKeyAgreement,
 };
 use parsec_interface::operations::psa_asymmetric_decrypt::Operation as PsaAsymDecrypt;
 use parsec_interface::operations::psa_asymmetric_encrypt::Operation as PsaAsymEncrypt;
@@ -37,6 +37,8 @@ use parsec_interface::operations::psa_hash_compare::Operation as PsaHashCompare;
 use parsec_interface::operations::psa_hash_compute::Operation as PsaHashCompute;
 use parsec_interface::operations::psa_import_key::Operation as PsaImportKey;
 use parsec_interface::operations::psa_key_attributes::Attributes;
+use parsec_interface::operations::psa_mac_compute::Operation as PsaMacCompute;
+use parsec_interface::operations::psa_mac_verify::Operation as PsaMacVerify;
 use parsec_interface::operations::psa_raw_key_agreement::Operation as PsaRawKeyAgreement;
 use parsec_interface::operations::psa_sign_hash::Operation as PsaSignHash;
 use parsec_interface::operations::psa_sign_message::Operation as PsaSignMessage;
@@ -1130,6 +1132,51 @@ impl BasicClient {
         };
         let _ = self.op_client.process_operation(
             NativeOperation::PsaHashCompare(op),
+            crypto_provider,
+            &self.auth_data,
+        )?;
+        Ok(())
+    }
+
+    /// **[Cryptographic Operation]** Compute MAC of a message.
+    ///
+    /// The MAC computation will be performed with the algorithm defined in `alg`.
+    pub fn psa_mac_compute(&self, alg: Mac, key_name: &str, input: &[u8]) -> Result<Vec<u8>> {
+        let crypto_provider = self.can_provide_crypto()?;
+        let op = PsaMacCompute {
+            key_name: key_name.to_string(),
+            alg,
+            input: input.to_vec().into(),
+        };
+        let mac_compute_res = self.op_client.process_operation(
+            NativeOperation::PsaMacCompute(op),
+            crypto_provider,
+            &self.auth_data,
+        )?;
+        if let NativeResult::PsaMacCompute(res) = mac_compute_res {
+            Ok(res.mac.to_vec())
+        } else {
+            // Should really not be reached given the checks we do, but it's not impossible if some
+            // changes happen in the interface
+            Err(Error::Client(ClientErrorKind::InvalidServiceResponseType))
+        }
+    }
+
+    /// **[Cryptographic Operation]** Compute MAC of a message and compare it with a reference value.
+    ///
+    /// The MAC computation will be performed with the algorithm defined in `alg`.
+    ///
+    /// If this operation returns no error, the MAC was computed successfully and it matches the reference value.
+    pub fn psa_mac_verify(&self, alg: Mac, key_name: &str, input: &[u8], mac: &[u8]) -> Result<()> {
+        let crypto_provider = self.can_provide_crypto()?;
+        let op = PsaMacVerify {
+            key_name: key_name.to_string(),
+            alg,
+            input: input.to_vec().into(),
+            mac: mac.to_vec().into(),
+        };
+        let _ = self.op_client.process_operation(
+            NativeOperation::PsaMacVerify(op),
             crypto_provider,
             &self.auth_data,
         )?;

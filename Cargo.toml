@@ -13,7 +13,8 @@ documentation = "https://docs.rs/crate/parsec-client"
 rust-version = "1.66.0"
 
 [dependencies]
-parsec-interface = "0.29.0"
+#parsec-interface = "0.29.0"
+parsec-interface = { path = "../parsec-interface-rs" }
 num = "0.4.0"
 log = "0.4.17"
 derivative = "2.1.1"
